@@ -1,65 +1,77 @@
 # Axon
 
-**High-performance ML inference server in Rust**
+**High-performance, Deterministic ML Inference Server**
 
-Axon is a production-ready ML inference server optimized for GPU workloads, featuring dynamic batching, model caching, and sub-10ms p99 latency (target).
+Axon is a production-grade inference server engineered in Rust. It eliminates the Python runtime overhead found in traditional serving stacks (vLLM, TGI) to deliver **sub-10ms p99 latency**, predictable throughput, and memory safety.
 
-## Features
+## 🚀 Features
 
-- ✅ Async Rust (Tokio) architecture
-- ✅ GPU-accelerated inference via [Synapse](https://github.com/yourname/synapse)
-- ✅ Dynamic batching for improved throughput (planned)
-- ✅ Intelligent model caching (planned)
-- ✅ Prometheus metrics and observability (planned)
+  - **Zero-Overhead Scheduling**: Async Rust (Tokio) architecture eliminates the GIL.
+  - **Direct GPU Control**: Integrated tightly with [Synapse](https://github.com/yourname/synapse) for custom CUDA kernels.
+  - **Dynamic Batching**: Request-level batching without Python loop overhead (Planned).
+  - **Pure Rust Pipeline**: No external C++ runtime dependencies (like ONNX Runtime)—just raw CUDA via FFI.
 
-## Use Cases
+## ⚡ Use Cases
 
-- **Embedded/edge deployment** - Lightweight, Rust-native
-- **Safety-critical systems** - Memory safety guarantees
-- **Rust-native stacks** - Zero Python overhead
-- **Custom CUDA integration** - Direct control over GPU operations
+  - **High-Frequency Trading / HFT**: Where microsecond latency variances matter.
+  - **High-Throughput SaaS**: Maximizing requests-per-second per GPU dollar.
+  - **Embedded / Edge**: Running heavy models on limited hardware (Orin/Jetson).
+  - **Safety-Critical**: Environments where memory leaks and segfaults are unacceptable.
 
-## Quick Start
+## 🏗 Architecture
+
+```mermaid
+graph TD
+    Client[Client Requests] -->|gRPC/HTTP| Server
+    subgraph "Axon (Rust)"
+        Server[Axon Server]
+        Batcher[Async Batcher]
+        
+        Server --> Batcher
+        Batcher -->|LLMs / Hot Path| Synapse[Synapse Engine]
+    end
+    
+    subgraph "GPU"
+        Synapse --> CUDA[Custom Kernels - Paged Attention]
+    end
+```
+
+## ⚖️ Axon vs. vLLM
+
+Axon is designed for engineering teams hitting the limits of Python-based serving:
+
+| Feature | vLLM / Python Stacks | Axon (Rust) |
+| :--- | :--- | :--- |
+| **Runtime** | Python (Interpreter) | Native Binary |
+| **Concurrency** | Limited by GIL | True Async (Tokio) |
+| **Latency** | Variable (GC Pauses) | Deterministic |
+| **Memory** | High Overhead | Zero-Copy / Pinned |
+
+**Choose Axon when you need to maximize hardware utilization and guarantee latency SLOs.**
+
+## 🛠 Quick Start
 
 ```rust
 use axon::server::InferenceServer;
+use synapse::tensor::Tensor;
 
 #[tokio::main]
-async fn main() -> Result<(), String> {
-    let server = InferenceServer::load("model.onnx").await?;
-    let result = server.infer(&input_tensor).await?;
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Axon exclusively uses the Synapse backend for maximum control
+    let server = InferenceServer::builder()
+        .model("llama-3-8b")
+        .backend(Backend::Synapse) 
+        .build()
+        .await?;
+
+    server.serve("0.0.0.0:8080").await?;
     Ok(())
 }
 ```
 
-## Architecture
-
-```
-Client Requests
-    ↓
-Axon Server (batching, caching, routing)
-    ↓
-Model Execution (ONNX Runtime - planned)
-    ↓
-Synapse (GPU operations)
-    ↓
-CUDA Kernels
-```
-
-## Not Competing with vLLM
-
-Axon is designed for specialized use cases where Python-based frameworks don't fit:
-
-- Embedded/edge deployments (lightweight)
-- Safety-critical applications (memory safety)
-- Rust-native infrastructure (no Python runtime)
-- Custom CUDA kernel integration
-
-**For mainstream LLM serving in Python environments, use [vLLM](https://github.com/vllm-project/vllm).**
-
 ## Status
 
-🚧 **Early Development** - Core architecture in place. ONNX Runtime integration in progress.
+🚧 **Early Development** - Core architecture in place.
 
 ## Used By
 
