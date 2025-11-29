@@ -1,0 +1,22 @@
+[package]
+name = "axon"
+version = "0.1.0"
+edition = "2024"
+license = "BSL-1.1"
+description = "High-performance ML inference server in Rust"
+repository = "https://github.com/yourname/axon"
+keywords = ["ml", "inference", "gpu", "onnx", "server"]
+categories = ["web-programming::http-server", "science"]
+
+[dependencies]
+synapse = { path = "../synapse" }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+tracing = "0.1"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[lib]
+name = "axon"
+path = "src/lib.rs"

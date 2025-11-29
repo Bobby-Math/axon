@@ -1,0 +1,23 @@
+# Rust
+/target/
+#mdbook output
+/docs/book/
+
+# C/C++ FFI
+*.o
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+*.out
+/build/ # Common C/C++ build output directory
+
+# Environment variables
+.env
+.env.*
+!.env.example # Keep example for reference
+
+# OS generated files
+.DS_Store
