@@ -3,20 +3,37 @@ name = "axon"
 version = "0.1.0"
 edition = "2024"
 license = "BSL-1.1"
-description = "High-performance ML inference server in Rust"
+description = "Rust abstraction layer for LLM inference engines (vLLM, TGI, TensorRT-LLM)"
 repository = "https://github.com/yourname/axon"
-keywords = ["ml", "inference", "gpu", "onnx", "server"]
-categories = ["web-programming::http-server", "science"]
+keywords = ["llm", "inference", "vllm", "tgi", "tensorrt"]
+categories = ["api-bindings", "science"]
 
 [dependencies]
-synapse = { path = "../synapse" }
+# Async runtime
 tokio = { version = "1.0", features = ["full"] }
+
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
-tracing = "0.1"
+serde_json = "1.0"
+
+# HTTP client for vLLM/TGI APIs
+reqwest = { version = "0.12", features = ["json"] }
+
+# Error handling
+thiserror = "2.0"
+
+# Process management (for spawning vLLM)
+libc = "0.2"
 
 [dev-dependencies]
-criterion = "0.5"
+# Testing
+tokio-test = "0.4"
 
 [lib]
 name = "axon"
 path = "src/lib.rs"
+
+[[example]]
+name = "basic_inference"
+path = "examples/basic_inference.rs"
+

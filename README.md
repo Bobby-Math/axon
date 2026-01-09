@@ -1,87 +1,116 @@
 # Axon
 
-**High-performance, Deterministic ML Inference Server**
+**Rust Abstraction Layer for LLM Inference Engines**
 
-Axon is a production-grade inference server engineered in Rust. It eliminates the Python runtime overhead found in traditional serving stacks (vLLM, TGI) to deliver **sub-10ms p99 latency**, predictable throughput, and memory safety.
+Axon provides a unified, type-safe Rust interface to multiple LLM inference backends (vLLM, TGI, TensorRT-LLM). It handles process lifecycle management, health monitoring, and failure recovery—letting you focus on your application, not inference engine plumbing.
 
-## 🚀 Features
+## Motivation
 
-  - **Zero-Overhead Scheduling**: Async Rust (Tokio) architecture eliminates the GIL.
-  - **Direct GPU Control**: Integrated tightly with [Synapse](https://github.com/yourname/synapse) for custom CUDA kernels.
-  - **Dynamic Batching**: Request-level batching without Python loop overhead (Planned).
-  - **Pure Rust Pipeline**: No external C++ runtime dependencies (like ONNX Runtime)—just raw CUDA via FFI.
+Running LLMs from Rust typically means choosing one inference engine and tightly coupling your codebase to it. If you later want to switch from vLLM to TGI or TensorRT-LLM, you're rewriting significant portions of your infrastructure.
 
-## ⚡ Use Cases
+Axon solves this by providing a **unified abstraction** over multiple inference engines:
 
-  - **High-Frequency Trading / HFT**: Where microsecond latency variances matter.
-  - **High-Throughput SaaS**: Maximizing requests-per-second per GPU dollar.
-  - **Embedded / Edge**: Running heavy models on limited hardware (Orin/Jetson).
-  - **Safety-Critical**: Environments where memory leaks and segfaults are unacceptable.
+- **Single API** – Use the same code regardless of backend
+- **Backend swapping** – Switch engines via configuration, no code changes
+- **Process management** – Spawning, health checks, graceful shutdown handled for you
+- **Production-ready** – Failure recovery, retries, and observability built-in
 
-## 🏗 Architecture
+## Supported Backends
 
-```mermaid
-graph TD
-    Client[Client Requests] -->|gRPC/HTTP| Server
-    subgraph "Axon (Rust)"
-        Server[Axon Server]
-        Batcher[Async Batcher]
-        
-        Server --> Batcher
-        Batcher -->|LLMs / Hot Path| Synapse[Synapse Engine]
-    end
-    
-    subgraph "GPU"
-        Synapse --> CUDA[Custom Kernels - Paged Attention]
-    end
-```
+| Backend | Status | Best For |
+|---------|--------|----------|
+| **vLLM** | 🚧 Target for Phase 1 | General-purpose, best open-source |
+| **TGI** | 📅 Phase 3 | HuggingFace ecosystem integration |
+| **TensorRT-LLM** | 📅 Phase 3 | Maximum performance on NVIDIA GPUs |
+| **Custom CUDA** | 📅 Experimental | Specialized models via Synapse |
 
-## ⚖️ Axon vs. vLLM
-
-Axon is designed for engineering teams hitting the limits of Python-based serving:
-
-| Feature | vLLM / Python Stacks | Axon (Rust) |
-| :--- | :--- | :--- |
-| **Runtime** | Python (Interpreter) | Native Binary |
-| **Concurrency** | Limited by GIL | True Async (Tokio) |
-| **Latency** | Variable (GC Pauses) | Deterministic |
-| **Memory** | High Overhead | Zero-Copy / Pinned |
-
-**Choose Axon when you need to maximize hardware utilization and guarantee latency SLOs.**
-
-## 🛠 Quick Start
+## Quick Start
 
 ```rust
-use axon::server::InferenceServer;
-use synapse::tensor::Tensor;
+use axon::{InferenceBackend, VllmBackend, ModelConfig, InferenceRequest};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Axon exclusively uses the Synapse backend for maximum control
-    let server = InferenceServer::builder()
-        .model("llama-3-8b")
-        .backend(Backend::Synapse) 
-        .build()
-        .await?;
+    // Create backend - Axon handles process spawning
+    let mut backend = VllmBackend::new();
 
-    server.serve("0.0.0.0:8080").await?;
+    // Load model
+    backend.load_model(ModelConfig {
+        model_name: "meta-llama/Llama-2-7b-hf".to_string(),
+        tensor_parallel_size: 1,
+        ..Default::default()
+    }).await?;
+
+    // Run inference
+    let response = backend.infer(InferenceRequest {
+        prompt: "Explain quantum computing in one sentence.",
+        max_tokens: 100,
+        temperature: 0.7,
+    }).await?;
+
+    println!("{}", response.text);
+
+    // Clean shutdown
+    backend.shutdown().await?;
+
     Ok(())
 }
 ```
 
+## Use Cases
+
+- **Distributed inference systems** – Swap backends per deployment region
+- **A/B testing** – Compare inference engines without code changes
+- **Multi-cloud deployments** – Use different backends on different providers
+- **Spot instance orchestration** – Perfect companion for systems like [Synkti](https://github.com/bobby-math/synkti)
+
+## Architecture
+
+```
+Your Application
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│              Axon                        │
+│  ┌────────────────────────────────────┐ │
+│  │       InferenceBackend Trait       │ │
+│  └────────────────────────────────────┘ │
+│                                         │
+│  ┌────────┐  ┌────────┐  ┌───────────┐ │
+│  │ vLLM   │  │  TGI   │  │TensorRT-LLM│ │
+│  └────────┘  └────────┘  └───────────┘ │
+└─────────────────────────────────────────┘
+    │            │            │
+    ▼            ▼            ▼
+vLLM proc     TGI proc    TensorRT proc
+(Python)      (Python)      (C++/CUDA)
+```
+
+## Why Not Just Build Another Inference Server?
+
+Building a production-grade LLM inference server means replicating years of work:
+- PagedAttention (KV cache management)
+- Continuous batching
+- CUDA graphs and kernel fusion
+- Multi-GPU tensor parallelism
+
+Rather than competing with vLLM, Axon **embraces it**—providing the Rust-native integration layer that the ecosystem lacks.
+
 ## Status
 
-🚧 **Early Development** - Core architecture in place.
+🚧 **Early Development** – Actively transitioning to vLLM integration layer.
+
+See [CLAUDE.md](CLAUDE.md) for detailed development roadmap.
 
 ## Used By
 
-- [Tessera](https://github.com/yourname/tessera) - Distributed GPU orchestration (private)
+- [Synkti](https://github.com/bobby-math/synkti) – Distributed orchestration for spot instances
 
 ## License
 
 Business Source License 1.1 (BSL-1.1)
 
-Axon is licensed under the Business Source License 1.1. The license allows free use for non-production purposes and production use that doesn't compete with commercial ML inference offerings.
+Axon is licensed under the Business Source License 1.1. The license allows free use for non-production purposes and production use that doesn't compete with commercial LLM inference offerings.
 
 On **2029-11-27** (four years from initial publication), the license automatically converts to the MIT License, making Axon fully open source.
 
