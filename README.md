@@ -2,18 +2,27 @@
 
 **Rust Abstraction Layer for LLM Inference Engines**
 
-Axon provides a unified, type-safe Rust interface to multiple LLM inference backends (vLLM, TGI, TensorRT-LLM). It handles process lifecycle management, health monitoring, and failure recovery—letting you focus on your application, not inference engine plumbing.
+Axon provides a Rust interface to LLM inference backends (vLLM, TGI, TensorRT-LLM), handling process lifecycle management and health monitoring.
 
-## Motivation
+## Current Status: Exploratory
 
-Running LLMs from Rust typically means choosing one inference engine and tightly coupling your codebase to it. If you later want to switch from vLLM to TGI or TensorRT-LLM, you're rewriting significant portions of your infrastructure.
+Axon is currently a **thin HTTP wrapper** around vLLM's OpenAI-compatible API. It spawns vLLM, monitors health, and forwards requests.
 
-Axon solves this by providing a **unified abstraction** over multiple inference engines:
+**Honest assessment:** For simple use cases (spawn vLLM, health check, shutdown), Axon may be unnecessary overhead. Direct container management is often sufficient.
 
-- **Single API** – Use the same code regardless of backend
-- **Backend swapping** – Switch engines via configuration, no code changes
-- **Process management** – Spawning, health checks, graceful shutdown handled for you
-- **Production-ready** – Failure recovery, retries, and observability built-in
+**When Axon becomes valuable:** If you need request routing based on:
+- Budget constraints (cap daily spend)
+- Data residency / jurisdiction (EU-only routing)
+- Cost/quality tradeoffs (cheap model vs expensive model)
+- Heterogeneous chips (GPU, TPU, LPU selection)
+
+The routing layer is designed but not yet built. We're waiting for real usage patterns before committing to the abstraction.
+
+## What Axon Does
+
+- **Process management** – Spawn inference engines, monitor health, graceful shutdown
+- **Unified API** – Same interface regardless of backend (vLLM, TGI, TensorRT-LLM)
+- **Backend swapping** – Switch engines via configuration
 
 ## Supported Backends
 
@@ -57,12 +66,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Use Cases
+## Potential Use Cases
 
-- **Distributed inference systems** – Swap backends per deployment region
-- **A/B testing** – Compare inference engines without code changes
-- **Multi-cloud deployments** – Use different backends on different providers
-- **Spot instance orchestration** – Perfect companion for systems like [Synkti](https://github.com/bobby-math/synkti)
+These are explored but not yet validated - waiting for real usage patterns:
+
+- **Multi-cloud deployments** – Unified interface across AWS, GCP, Azure backends. This is the clearest justification for Axon's abstraction layer.
+- **Budget-capped inference** – Enforce daily spend limits
+- **Jurisdiction-aware routing** – Keep EU data in EU
+- **Cost/quality routing** – Cheap model for low-stakes, expensive for high-stakes
+- **Heterogeneous chip routing** – Route to GPU, TPU, or LPU based on workload
+- **Cross-cloud failover** – AWS spot preempted → route to GCP while migrating
+
+**Multi-cloud trigger:** If [Synkti](https://github.com/bobby-math/synkti) expands beyond AWS to support GCP preemptible VMs, Azure spot, etc., Axon becomes the abstraction layer that unifies inference across clouds. Until then, direct container management is simpler.
+
+See [claude/axon-directions.md](claude/axon-directions.md) for detailed analysis.
 
 ## Architecture
 
@@ -98,9 +115,11 @@ Rather than competing with vLLM, Axon **embraces it**—providing the Rust-nativ
 
 ## Status
 
-🚧 **Early Development** – Actively transitioning to vLLM integration layer.
+🔬 **Exploratory** – Basic vLLM wrapper exists. Routing features designed but not built.
 
-See [CLAUDE.md](CLAUDE.md) for detailed development roadmap.
+**Strategic direction:** Wait for real usage patterns before expanding. The routing layer may become a feature of [Synkti's](https://github.com/bobby-math/synkti) control plane, a client SDK, or a separate service - we don't know yet.
+
+See [CLAUDE.md](CLAUDE.md) for strategic context.
 
 ## Used By
 
